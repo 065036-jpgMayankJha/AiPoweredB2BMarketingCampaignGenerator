@@ -19,44 +19,74 @@ def generate_linkedin_posts(
         {
             "approach": "Thought leadership",
             "hook": "In enterprise AI, the most useful first question may be a business one.",
+            "content_objective": "Start a useful discussion about enterprise AI priorities.",
+            "target_audience": f"{job_role} in {industry}",
+            "post_headline": "In enterprise AI, the most useful first question may be a business one.",
             "body": (
+                f"For {industry} leaders such as a {job_role}, a grounded conversation starts "
+                f"with the stated challenge: {challenges}. From there, teams can agree which "
+                "business question and evaluation criteria merit further discovery."
+            ),
+            "post_body": (
                 f"For {industry} leaders such as a {job_role}, a grounded conversation starts "
                 f"with the stated challenge: {challenges}. From there, teams can agree which "
                 "business question and evaluation criteria merit further discovery."
             ),
             "call_to_action": "What business question is shaping your AI agenda?",
             "hashtags": ["B2BMarketing", "EnterpriseAI", "BFSI"],
+            "suggested_hashtags": ["#B2BMarketing", "#EnterpriseAI", "#BFSI"],
+            "content_format": "Thought leadership text post",
             "assumptions": ["Hypothetical campaign copy; validate before publication."],
         },
         {
             "approach": "Educational",
             "hook": "A practical checklist for evaluating an enterprise AI opportunity.",
+            "content_objective": "Offer practical evaluation guidance.",
+            "target_audience": f"{job_role} in {industry}",
+            "post_headline": "A practical checklist for evaluating an enterprise AI opportunity.",
             "body": (
+                f"For a {job_role} audience in {industry}, start with the challenge "
+                f"'{challenges}'. Clarify affected stakeholders, define how success would be "
+                "measured, and confirm governance and evidence requirements before evaluation."
+            ),
+            "post_body": (
                 f"For a {job_role} audience in {industry}, start with the challenge "
                 f"'{challenges}'. Clarify affected stakeholders, define how success would be "
                 "measured, and confirm governance and evidence requirements before evaluation."
             ),
             "call_to_action": "Save this checklist for your next discovery conversation.",
             "hashtags": ["AIReadiness", "BFSI", "DigitalStrategy"],
+            "suggested_hashtags": ["#AIReadiness", "#BFSI", "#DigitalStrategy"],
+            "content_format": "Educational checklist post",
             "assumptions": ["Checklist is general guidance, not product-specific advice."],
         },
         {
             "approach": "Promotional",
             "hook": "Exploring AI priorities in financial services?",
+            "content_objective": "Invite an appropriate discovery conversation.",
+            "target_audience": f"{job_role} in {industry}",
+            "post_headline": "Exploring AI priorities in financial services?",
             "body": (
+                f"Consider a discovery conversation about your priorities and how {solution_name} "
+                "may fit. Specific capabilities and suitability should be confirmed with approved "
+                "product information and your organization's requirements."
+            ),
+            "post_body": (
                 f"Consider a discovery conversation about your priorities and how {solution_name} "
                 "may fit. Specific capabilities and suitability should be confirmed with approved "
                 "product information and your organization's requirements."
             ),
             "call_to_action": campaign_goal,
             "hashtags": ["FinancialServices", "EnterpriseTechnology", "AI"],
+            "suggested_hashtags": ["#FinancialServices", "#EnterpriseTechnology", "#AI"],
+            "content_format": "Promotional text post",
             "assumptions": ["Promotional concept; obtain product and brand approval before use."],
         },
     ]
     task = (
         "Create exactly three LinkedIn posts in a JSON array, one each for Thought leadership, "
-        "Educational, and Promotional. Every object must have approach, hook, body, call_to_action, "
-        "hashtags (array), and assumptions (array). "
+        "Educational, and Promotional. Every object must have content_objective, target_audience, "
+        "post_headline, post_body, call_to_action, suggested_hashtags (array), and content_format. "
         f"Industry: {industry}. Target role: {job_role}. Stated challenges: {challenges}. "
         f"Illustrative solution: {solution_name}. Campaign goal: {campaign_goal}. "
         "Keep professional B2B tone. Make no unsupported product, customer, or performance claims. "
@@ -71,7 +101,7 @@ def generate_linkedin_posts(
         tone,
         additional_context=f"Illustrative solution: {solution_name}. Campaign goal: {campaign_goal}.",
     )
-    result = generate_json(prompt, sample, use_sample_mode)
+    result = generate_json(prompt, sample, use_sample_mode, "linkedin_posts")
     if not isinstance(result, list) or len(result) != 3:
         raise ValueError("LinkedIn generation must return exactly three posts.")
     return apply_sample_tone(result, tone) if use_sample_mode else result
@@ -91,10 +121,18 @@ def generate_email_campaign(
             "step": "Initial outreach",
             "timing": "Day 1",
             "subject_line": "A question about your AI priorities",
+            "campaign_objective": campaign_goal,
+            "target_persona": f"{job_role} in {industry}",
+            "email_subject": "A question about your AI priorities",
+            "preview_text": "A short question about your team's evaluation criteria.",
             "value_proposition": (
                 "Compare your stated priorities with a structured discovery discussion; no "
                 "capability or outcome is assumed."
             ),
+            "follow_up_email_suggestions": [
+                "If appropriate and permitted, send a concise follow-up after five business days.",
+                "Stop the sequence if the recipient declines or asks not to be contacted.",
+            ],
             "email_body": (
                 f"Hello {{First name}},\n\nI am reaching out because teams in {industry} may be "
                 "reviewing how AI relates to their business priorities. You noted that "
@@ -109,6 +147,10 @@ def generate_email_campaign(
             "step": "Follow-up",
             "timing": "Day 5",
             "subject_line": "Re: A question about your AI priorities",
+            "campaign_objective": campaign_goal,
+            "target_persona": f"{job_role} in {industry}",
+            "email_subject": "Re: A question about your AI priorities",
+            "preview_text": "A brief follow-up in case this is timely.",
             "value_proposition": "Offer a concise, relevant next step based on the recipient's reply.",
             "email_body": (
                 "Hello {First name},\n\nFollowing up in case this is timely. If AI evaluation "
@@ -117,6 +159,9 @@ def generate_email_campaign(
                 "owns this topic, please feel free to point me in the right direction.\n\nBest,\n"
                 "{Sender name}"
             ),
+            "follow_up_email_suggestions": [
+                "If there is no response and policy permits, send one final respectful note."
+            ],
             "call_to_action": "Reply with a suitable time or the right contact.",
             "assumptions": ["Send only where consent, policy, and contact rules permit."],
         },
@@ -124,6 +169,10 @@ def generate_email_campaign(
             "step": "Final follow-up",
             "timing": "Day 12",
             "subject_line": "Should I close the loop?",
+            "campaign_objective": campaign_goal,
+            "target_persona": f"{job_role} in {industry}",
+            "email_subject": "Should I close the loop?",
+            "preview_text": "I will close the loop for now; reconnect if the timing changes.",
             "value_proposition": "Make it easy to defer or redirect the conversation.",
             "email_body": (
                 "Hello {First name},\n\nI will close the loop for now. If reviewing AI priorities "
@@ -131,6 +180,9 @@ def generate_email_campaign(
                 "and evaluation criteria. No response is needed if the timing is not right.\n\n"
                 "Best,\n{Sender name}"
             ),
+            "follow_up_email_suggestions": [
+                "Close the sequence; resume only if the recipient initiates or permits contact."
+            ],
             "call_to_action": "Let me know if a later conversation would be useful.",
             "assumptions": ["Stop outreach when requested and follow applicable policies."],
         },
@@ -138,8 +190,9 @@ def generate_email_campaign(
     task = (
         "Create a compliant, personalized B2B outreach sequence with exactly three emails: "
         "initial outreach, follow-up, and final follow-up. Return a JSON array; every object must "
-        "contain step, timing, subject_line, value_proposition, email_body, call_to_action, "
-        "assumptions. Use placeholders such as {First name} and {Sender name}. "
+        "contain campaign_objective, target_persona, email_subject, preview_text, email_body, "
+        "call_to_action, follow_up_email_suggestions (array), and assumptions. Use placeholders "
+        "such as {First name} and {Sender name}. "
         f"Industry: {industry}. Buyer role: {job_role}. Stated challenges: {challenges}. "
         f"Illustrative solution: {solution_name}. Campaign goal: {campaign_goal}. "
         "Do not claim product capabilities or guaranteed outcomes. Avoid fabricated personalization. "
@@ -154,7 +207,7 @@ def generate_email_campaign(
         tone,
         additional_context=f"Illustrative solution: {solution_name}. Campaign goal: {campaign_goal}.",
     )
-    result = generate_json(prompt, sample, use_sample_mode)
+    result = generate_json(prompt, sample, use_sample_mode, "email_campaign")
     if not isinstance(result, list) or len(result) != 3:
         raise ValueError("Email generation must return an initial email and two follow-ups.")
     return apply_sample_tone(result, tone) if use_sample_mode else result

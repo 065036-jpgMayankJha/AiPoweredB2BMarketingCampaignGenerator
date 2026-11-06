@@ -1,6 +1,5 @@
 """Streamlit interface for the AI-powered B2B campaign and content generator."""
 
-import json
 from datetime import date
 from typing import Any
 
@@ -13,13 +12,11 @@ from plotly.subplots import make_subplots
 from config import load_settings
 from modules.account_based_marketing import generate_account_strategies
 from modules.analytics import load_sample_campaign_data, recommend_kpis
-from modules.approval_workflow import (
-    approve_content,
-    get_approved_content,
-    parse_edited_content,
-    serialize_content,
+from modules.approval_workflow import get_approved_content
+from modules.campaign_planner import (
+    generate_campaign_calendar,
+    generate_campaign_strategy,
 )
-from modules.campaign_planner import generate_campaign_calendar
 from modules.campaign_intelligence import recommend_campaign_intelligence
 from modules.campaign_dashboard import (
     SIMULATED_LABEL,
@@ -35,7 +32,13 @@ from modules.content_generator import (
 )
 from modules.content_quality import SCORE_LABEL, evaluate_content
 from modules.llm_client import LLMError
-from modules.persona_generator import generate_persona, generate_value_proposition
+from modules.export_utils import export_campaign_csv, export_json, export_text
+from modules.persona_generator import generate_icp, generate_persona, generate_value_proposition
+from modules.structured_outputs import (
+    OUTPUT_KEY_SCHEMAS,
+    validate_structured_output,
+)
+from modules.ui_components import render_edit_form, render_structured_output
 
 
 st.set_page_config(
@@ -81,45 +84,21 @@ st.markdown(
 PAGES = [
     "Campaign performance dashboard",
     "Customer persona",
+    "Ideal customer profile",
     "Value proposition",
     "LinkedIn content",
     "Email campaign",
     "Sales enablement",
     "Campaign planner",
+    "Campaign strategy",
     "KPI recommendations",
     "Account-based marketing",
     "Campaign intelligence",
 ]
 
 
-def add_downloads(value: Any, key: str) -> None:
-    """Offer reusable TXT and CSV exports for generated structured content."""
-    text = json.dumps(value, indent=2, ensure_ascii=False)
-    if isinstance(value, list) and all(isinstance(item, dict) for item in value):
-        export_frame = pd.json_normalize(value, sep=".")
-    elif isinstance(value, dict):
-        export_frame = pd.json_normalize(value, sep=".")
-    else:
-        export_frame = pd.DataFrame({"content": [text]})
-    left, right = st.columns(2)
-    left.download_button(
-        "Download TXT",
-        data=text,
-        file_name=f"{key}.txt",
-        mime="text/plain",
-        key=f"{key}_txt",
-    )
-    right.download_button(
-        "Download CSV",
-        data=export_frame.to_csv(index=False),
-        file_name=f"{key}.csv",
-        mime="text/csv",
-        key=f"{key}_csv",
-    )
-
-
-def render_output(key: str, title: str) -> None:
-    """Render editable content, quality guidance, and approval-gated downloads."""
+def render_output(key: str, title: str, asset_type: str | None = None) -> None:
+    """Render a structured preview, field editor, quality guidance, and exports."""
     generated = st.session_state.get(key)
     if generated is None:
         return
@@ -130,6 +109,7 @@ def render_output(key: str, title: str) -> None:
         approvals[key] = False
 
     value = drafts[key]
+    schema_name = asset_type or OUTPUT_KEY_SCHEMAS.get(key)
     st.divider()
     st.subheader(title)
     assessment = evaluate_content(
@@ -150,32 +130,20 @@ def render_output(key: str, title: str) -> None:
         st.write(assessment["methodology"])
         st.json(assessment["scores"])
 
-    editor_key = f"marketing_editor_{key}"
-    if editor_key not in st.session_state:
-        st.session_state[editor_key] = serialize_content(value)
-    with st.form(f"review_form_{key}"):
-        edited_text = st.text_area(
-            "Review and edit generated JSON",
-            key=editor_key,
-            height=300,
-            help="Edit the content directly. Valid JSON is required to save or approve.",
-        )
-        save_clicked, approve_clicked = st.columns(2)
-        with save_clicked:
-            save_draft = st.form_submit_button("Save edits", use_container_width=True)
-        with approve_clicked:
-            approve_draft = st.form_submit_button(
-                "Approve content", type="primary", use_container_width=True
-            )
+    render_structured_output(schema_name or key, value)
+    with st.expander("Copy formatted content", expanded=False):
+        st.code(export_text(value, title), language=None)
+    with st.expander("Advanced: View Raw JSON", expanded=False):
+        st.code(export_json(value), language="json")
 
-    if save_draft or approve_draft:
+    submitted, updated, approve_draft = render_edit_form(value, key)
+    if submitted:
         approvals[key] = False
         try:
-            updated = (
-                approve_content(edited_text)
-                if approve_draft
-                else parse_edited_content(edited_text)
-            )
+            if schema_name:
+                validate_structured_output(updated, schema_name)
+            if approve_draft and updated in ({}, [], None, ""):
+                raise ValueError("Empty content cannot be approved.")
             drafts[key] = updated
             approvals[key] = bool(approve_draft)
             if approve_draft:
@@ -190,13 +158,32 @@ def render_output(key: str, title: str) -> None:
         st.success("Approved draft — ready to export.")
         try:
             approved = get_approved_content(drafts, approvals, key)
-            add_downloads(approved, key)
+            export_columns = st.columns(3)
+            export_columns[0].download_button(
+                "Download JSON",
+                data=export_json(approved),
+                file_name=f"{key}.json",
+                mime="application/json",
+                key=f"{key}_json",
+            )
+            export_columns[1].download_button(
+                "Download TXT",
+                data=export_text(approved, title),
+                file_name=f"{key}.txt",
+                mime="text/plain",
+                key=f"{key}_txt",
+            )
+            export_columns[2].download_button(
+                "Download CSV",
+                data=export_campaign_csv({key: approved}),
+                file_name=f"{key}.csv",
+                mime="text/csv",
+                key=f"{key}_csv",
+            )
         except ValueError as exc:
             st.error(str(exc))
     else:
-        st.warning("Draft only. TXT and CSV downloads become available after human approval.")
-    with st.expander("Current draft preview", expanded=False):
-        st.json(drafts[key], expanded=True)
+        st.warning("Draft only. Downloads become available after human review and approval.")
 
 
 def set_result(key: str, generator: Any, title: str) -> None:
@@ -207,9 +194,50 @@ def set_result(key: str, generator: Any, title: str) -> None:
             st.session_state[key] = generated
             st.session_state.setdefault("marketing_drafts", {})[key] = generated
             st.session_state.setdefault("marketing_approvals", {})[key] = False
-            st.session_state.pop(f"marketing_editor_{key}", None)
+            for state_key in list(st.session_state.keys()):
+                if isinstance(state_key, str) and state_key.startswith(f"edit_{key}_"):
+                    del st.session_state[state_key]
+            st.success(f"{title} generated and ready for review.")
     except (LLMError, ValueError) as exc:
         st.error(str(exc))
+
+
+def render_campaign_exports() -> None:
+    """Offer campaign-wide downloads for the outputs approved in this session."""
+    drafts = st.session_state.get("marketing_drafts", {})
+    approvals = st.session_state.get("marketing_approvals", {})
+    approved = {
+        key: value for key, value in drafts.items() if approvals.get(key, False)
+    }
+    if not approved:
+        return
+    with st.expander("Complete campaign export — approved outputs", expanded=False):
+        st.caption(
+            "Exports contain the structured outputs approved in this session. "
+            "Unapproved drafts are excluded."
+        )
+        columns = st.columns(3)
+        columns[0].download_button(
+            "Download campaign JSON",
+            data=export_json(approved),
+            file_name="marketing_campaign.json",
+            mime="application/json",
+            key="complete_campaign_json",
+        )
+        columns[1].download_button(
+            "Download campaign TXT",
+            data=export_text(approved, "Approved marketing campaign"),
+            file_name="marketing_campaign.txt",
+            mime="text/plain",
+            key="complete_campaign_txt",
+        )
+        columns[2].download_button(
+            "Download campaign CSV",
+            data=export_campaign_csv(approved),
+            file_name="marketing_campaign.csv",
+            mime="text/csv",
+            key="complete_campaign_csv",
+        )
 
 
 def _format_rate(value: float | None) -> str:
@@ -592,6 +620,7 @@ def main() -> None:
         "all facts and approvals before external use.</div>",
         unsafe_allow_html=True,
     )
+    render_campaign_exports()
 
     if page == "Campaign performance dashboard":
         render_campaign_performance_dashboard()
@@ -607,7 +636,29 @@ def main() -> None:
                 ),
                 "customer persona",
             )
-        render_output("persona_result", "Illustrative buyer persona")
+        render_output("persona_result", "Illustrative buyer persona", "customer_persona")
+
+    elif page == "Ideal customer profile":
+        st.header("Ideal Customer Profile Generator")
+        st.write("Create a qualification hypothesis; confirm organization fit with research.")
+        revenue_range = st.text_input("Revenue range (optional)", placeholder="Not provided")
+        geography = st.text_input("Target geography (optional)", placeholder="Not provided")
+        if st.button("Generate ideal customer profile", type="primary"):
+            set_result(
+                "icp_result",
+                lambda: generate_icp(
+                    industry,
+                    company_size,
+                    revenue_range,
+                    geography,
+                    maturity,
+                    challenges,
+                    sample_mode,
+                    tone,
+                ),
+                "ideal customer profile",
+            )
+        render_output("icp_result", "Illustrative ideal customer profile", "ideal_customer_profile")
 
     elif page == "Value proposition":
         st.header("Value Proposition Generator")
@@ -627,7 +678,7 @@ def main() -> None:
                 ),
                 "value proposition",
             )
-        render_output("value_result", "Positioning and messaging framework")
+        render_output("value_result", "Positioning and messaging framework", "value_proposition")
 
     elif page == "LinkedIn content":
         st.header("LinkedIn Content Generator")
@@ -640,7 +691,7 @@ def main() -> None:
                 ),
                 "LinkedIn posts",
             )
-        render_output("linkedin_result", "LinkedIn post concepts")
+        render_output("linkedin_result", "LinkedIn post concepts", "linkedin_posts")
 
     elif page == "Email campaign":
         st.header("Email Campaign Generator")
@@ -653,7 +704,7 @@ def main() -> None:
                 ),
                 "email sequence",
             )
-        render_output("email_result", "Email sequence")
+        render_output("email_result", "Email sequence", "email_campaign")
 
     elif page == "Sales enablement":
         st.header("Sales Enablement Generator")
@@ -682,8 +733,40 @@ def main() -> None:
         calendar = st.session_state.get("calendar_result")
         if calendar:
             st.caption("All entries are planning concepts; confirm dates, channels, and approvals.")
-            st.dataframe(pd.DataFrame(calendar), use_container_width=True, hide_index=True)
-            render_output("calendar_result", "Review the campaign calendar")
+            render_output(
+                "calendar_result",
+                "Review the campaign calendar",
+                "campaign_calendar",
+            )
+
+    elif page == "Campaign strategy":
+        st.header("Campaign Strategy Generator")
+        st.write(
+            "Build an integrated channel, phase, content, timeline, budget-assumption, "
+            "and measurement plan."
+        )
+        strategy_channels = st.multiselect(
+            "Available marketing channels",
+            ["LinkedIn", "Email", "Website", "Webinar", "Paid media", "Sales enablement"],
+            default=["LinkedIn", "Email", "Website"],
+            key="strategy_channels",
+        )
+        if st.button("Generate campaign strategy", type="primary"):
+            set_result(
+                "strategy_result",
+                lambda: generate_campaign_strategy(
+                    industry,
+                    company_size,
+                    job_role,
+                    challenges,
+                    campaign_goal,
+                    strategy_channels,
+                    sample_mode,
+                    tone,
+                ),
+                "campaign strategy",
+            )
+        render_output("strategy_result", "Hypothetical campaign strategy", "campaign_strategy")
 
     elif page == "KPI recommendations":
         st.header("Marketing KPI Recommendation Engine")
@@ -702,14 +785,24 @@ def main() -> None:
             has_crm_attribution = st.checkbox("CRM attribution is defined and available")
             submitted = st.form_submit_button("Recommend KPIs", type="primary")
         if submitted:
-            st.session_state["kpi_result"] = recommend_kpis(
-                objective, channels, tracks_paid_spend, has_crm_attribution
-            )
+            try:
+                recommendations = recommend_kpis(
+                    objective, channels, tracks_paid_spend, has_crm_attribution
+                )
+                validate_structured_output(recommendations, "kpi_recommendations")
+                st.session_state["kpi_result"] = recommendations
+                st.session_state.setdefault("marketing_drafts", {})["kpi_result"] = recommendations
+                st.session_state.setdefault("marketing_approvals", {})["kpi_result"] = False
+                st.success("KPI recommendations generated and ready for review.")
+            except ValueError as exc:
+                st.error(f"Could not validate KPI recommendations: {exc}")
         if "kpi_result" in st.session_state:
-            result = st.session_state["kpi_result"]
             st.subheader("Recommended metrics")
-            st.dataframe(pd.DataFrame(result), use_container_width=True, hide_index=True)
-            render_output("kpi_result", "Review KPI recommendations")
+            render_output(
+                "kpi_result",
+                "Review KPI recommendations",
+                "kpi_recommendations",
+            )
 
         st.divider()
         st.subheader("Illustrative campaign data")

@@ -105,6 +105,12 @@ def recommend_kpis(
                     f"Supports the stated objective ({objective}) when measured consistently "
                     f"across the selected channel(s): {channel_names}."
                 ),
+                "kpi_name": kpi["kpi"],
+                "description": kpi["definition"],
+                "measurement_formula": kpi["formula"],
+                "target_value": "Set after a baseline and measurement rules are agreed.",
+                "measurement_frequency": kpi["measurement_cadence"],
+                "business_relevance": kpi["recommended_for"],
                 "guardrail": (
                     "Agree definitions, attribution, data sources, and baseline before setting targets."
                 ),
