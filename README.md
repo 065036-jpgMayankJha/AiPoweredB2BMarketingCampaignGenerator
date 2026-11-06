@@ -2,8 +2,7 @@
 
 A Streamlit portfolio project showing how an enterprise technology marketing team could plan and draft a targeted B2B campaign for BFSI audiences.
 
-> **Important:** HCLTech AI Force is included only as an illustrative solution name. The personas, campaign copy, calendar, and CSV records are hypothetical. This project does not assert HCLTech product capabilities, customer results, certifications, or performance claims. Validate product facts, approvals, privacy requirements, and account details before any external use.
-
+> **Important:** Portfolio demonstration: The solution name is illustrative. Campaigns, personas, and data are hypothetical. No product capabilities, customer outcomes, or performance claims are asserted. Validate all facts and approvals before external use.
 ## Features
 
 - Customer persona and value proposition generators
@@ -94,7 +93,6 @@ The KPI engine recommends measures based on the selected objective and whether p
 - `reports/project_report.docx` summarizes the concept, architecture, safeguards, and evaluation approach.
 - `reports/presentation.pptx` is a concise interview presentation for the project.
 
-Both assets are illustrative portfolio materials and make no claims about HCLTech AI Force.
 
 Run the focused automated tests with:
 
